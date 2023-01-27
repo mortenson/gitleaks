@@ -20,6 +20,7 @@ func init() {
 	detectCmd.Flags().Bool("no-git", false, "treat git repo as a regular directory and scan those files, --log-opts has no effect on the scan when --no-git is set")
 	detectCmd.Flags().Bool("pipe", false, "scan input from stdin, ex: `cat some_file | gitleaks detect --pipe`")
 	detectCmd.Flags().Bool("follow-symlinks", false, "scan files that are symlinks to other files")
+	detectCmd.Flags().StringSlice("paths", []string{}, "scan specific paths when using --no-git, ex: `gitleaks detect --paths a,b --paths c`")
 
 }
 
@@ -117,10 +118,20 @@ func runDetect(cmd *cobra.Command, args []string) {
 
 	// start the detector scan
 	if noGit {
-		findings, err = detector.DetectFiles(source)
+		paths, err := cmd.Flags().GetStringSlice("paths")
 		if err != nil {
-			// don't exit on error, just log it
-			log.Error().Err(err).Msg("")
+			log.Fatal().Err(err).Msg("could not call GetStringSlice() for paths")
+		}
+		if len(paths) == 0 {
+			paths = []string{source}
+		}
+		for _, path := range paths {
+			newFindings, err := detector.DetectFiles(path)
+			if err != nil {
+				// don't exit on error, just log it
+				log.Error().Err(err).Msg("")
+			}
+			findings = append(findings, newFindings...)
 		}
 	} else if fromPipe {
 		findings, err = detector.DetectReader(os.Stdin, 10)
